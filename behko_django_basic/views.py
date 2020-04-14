@@ -9,13 +9,21 @@ from django_datatables_view.base_datatable_view import BaseDatatableView
 
 
 class BasicDatatableView(BaseDatatableView):
+    search_columns = []
 
-    title = ''
     def search_qs(self, qs, search):
-        return qs.filter(Q(title__icontains=search))
+        filters = []
+        for search_column in self.search_columns:
+            filters.append(Q(**{f'{search_column}__icontains': search}))
+        if len(filters) > 0:
+            f = filters[0]
+            for _filter in filters[1:]:
+                f |= _filter
+            qs = qs.filter(f)
+        return qs
 
     def filter_queryset(self, qs):
-        search = self.request.GET.get('search[value]', None)
+        search = self.request.POST.get('search[value]', None)
         if search:
             qs = self.search_qs(qs, search)
         return qs
@@ -26,6 +34,7 @@ class BasicDeleteView(DeleteView):
     def delete(self, request, *args, **kwargs):
         self.get_object().delete()
         return JsonResponse({"success": "success"})
+
 
 class AllInOne:
     namespace = None
@@ -56,6 +65,7 @@ class AllInOne:
     datatable_column_names = None
     datatable_columns = None
     datatable_order = None
+    search_columns = []
     extra_context_data = {}
     _os = []
 
@@ -159,6 +169,7 @@ class AllInOne:
         class Datatable(BasicDatatableView):
             model = self.all_model if self.all_model else self.datatable_model
             columns = self.datatable_columns
+            search_columns = self.search_columns
             if self.datatable_order is None:
                 order_columns = self.datatable_columns
             else:
@@ -176,4 +187,3 @@ class AllInOne:
 
         self.override(Delete, 'o_del_')
         return Delete
-
